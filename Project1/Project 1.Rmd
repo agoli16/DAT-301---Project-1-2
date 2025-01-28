@@ -1,0 +1,209 @@
+---
+title: "Project 1: Global Population Analysis"
+author: "Anish Goli"
+date: "2024-11-05"
+output: ioslides_presentation
+---
+
+```{r }
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+<style type="text/css">
+body p, div, h1, h2, h3, h4, h5 {
+    color: black;
+    font-family: "Modern Computer Roman";
+}
+slides > slide.title-slide hgroup h1 {
+    color: #36454F
+}
+h2 {
+    color: #36454F
+}
+.smaller-text {
+ font-size:0.8em;
+}
+</style>
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(plotly)
+library(ggplot2)
+library(dplyr)
+library(rmarkdown)
+library(reshape2)
+library(ggthemes)
+library(rgl)
+library(maps)
+library(viridis)
+countries_data <- read.csv("countries-table.csv")
+countries_data$country <- as.factor(countries_data$country)
+
+```
+
+## Introduction
+
+In this project, I analyzed a dataset of population of various countries. I have tried to use the data to identify trends and relationships across the dataset.
+
+## Problem Statement
+
+The objective of this analysis is to answer the following questions:
+
+1.  Which countries have the highest and lowest population?
+
+2.  How has the population changed over the years?
+
+3.  What are the patterns in population density across countries?
+
+4.  How do growth rate and net population change correlate?
+
+To answer those questions, I have analyzed and visualized the data using the following graph types.
+
+## 1. Population in 2023 by Country {.smaller-text}
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+top_countries <- countries_data %>%
+  arrange(desc(pop2023)) %>%
+  head(20)
+
+ggplot(top_countries, aes(x = reorder(country, pop2023), y = pop2023)) +
+  geom_bar(stat = "identity", fill = "#36454F") +
+  labs(title = "Top 20 Countries by Population in 2023", x = "Country", y = "Population (2023)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+*This bar plot shows the top 20 countries by population in 2023. India and China are leading with the highest populations, reflecting their significant demographic impact.*
+
+## 2. Population Growth from 1980 to 2023 {.smaller-text}
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+top_countries <- countries_data %>%
+  arrange(desc(pop2023)) %>%
+  head(10)
+population_trend <- countries_data %>%
+  select(country, pop1980, pop2000, pop2010, pop2023) %>%
+  pivot_longer(cols = starts_with("pop"), names_to = "Year", values_to = "Population") %>%
+  mutate(Year = as.numeric(gsub("pop", "", Year)))
+top_10_countries <- top_countries$country
+
+ggplot(population_trend %>% filter(country %in% top_10_countries), aes(x = Year, y = Population, color = country)) +
+  geom_line() +
+  labs(title = "Population Growth from 1980 to 2023 (Top 10 Countries)", x = "Year", y = "Population") +
+  theme_minimal()
+
+```
+
+*The line plot illustrates population trends over time for the top 10 countries. Most countries show a steady increase, highlighting global population growth.*
+
+## 3. Distribution of Population Density {.smaller-text}
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(countries_data, aes(x = density)) +
+  geom_histogram(fill = "#36454F", bins = 30) +
+  labs(title = "Distribution of Population Density (2023)", x = "Density (people per sq km)", y = "Frequency") +
+  theme_minimal()
+
+```
+
+*The histogram indicates that most countries have low to moderate population density. A few countries have exceptionally high densities, suggesting urban concentration.*
+
+## 4. Population Change from 1980 to 2023 {.smaller-text}
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+countries_data <- countries_data %>% 
+    mutate(net_change = pop2023 - pop1980)
+
+ggplot(countries_data, aes(x = net_change, y = growthRate)) +
+    geom_point(color = "#36454F") +
+    labs(title = "Growth Rate vs Net Population Change (1980-2023)", x = "Net Population Change", y = "Growth Rate") +
+    theme_minimal()
+
+```
+
+*This scatter plot shows a positive correlation between net population change and growth rate. Countries with higher net changes tend to have higher growth rates.*
+
+## 5. Population Distribution by Country {.smaller-text}
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(countries_data, aes(y = pop2023)) +
+    geom_boxplot(fill = "tan") +
+    labs(title = "Population Distribution Across Countries (2023)", x = "All Countries", y = "Population (2023)") +
+    theme_minimal()
+
+```
+
+*The box plot demonstrates the wide variation in country populations. The presence of outliers indicates countries with significantly higher populations.*
+
+## 6. Population vs Growth Rate {.smaller-text}
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(countries_data, aes(x = growthRate, y = pop2023)) +
+    geom_point(color = "#36454F") +
+    geom_smooth(method = "lm", se = FALSE, color = "blue") +
+    labs(title = "Population vs Growth Rate (2023)", x = "Growth Rate (%)", y = "Population (2023)") +
+    theme_minimal()
+
+```
+
+This scatter plot illustrates the relationship between the population in 2023 and the growth rate for each country. It helps us understand how the current population sizes are associated with their respective growth rates.
+
+## 7. Population Density Map {.smaller-text}
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+countries_data$country <- tolower(countries_data$country)
+
+world_map <- map_data("world")
+world_map$region <- tolower(world_map$region)
+
+map_data_joined <- left_join(world_map, countries_data, by = c("region" = "country"))
+
+map_data_joined$density[is.na(map_data_joined$density)] <- 0
+
+map_data_joined$density_log <- log10(map_data_joined$density + 1)
+
+ggplot(map_data_joined, aes(x = long, y = lat, group = group, fill = density_log)) +
+  geom_polygon(color = "gray90", size = 0.1) +
+  scale_fill_gradientn(colors = c("blue", "yellow", "red"),
+                       name = "Log Density (people per sq km)",
+                       breaks = c(0, 1, 2, 3, 4),
+                       labels = c("1", "10", "100", "1000", "10000"),
+                       limits = c(0, 4)) +
+  labs(title = "Global Population Density Map") +
+  theme_void()
+```
+
+*The choropleth map visualizes population density worldwide. Regions with higher density are highlighted, showing patterns of population concentration.*
+
+## 8. 3D Scatter Plot of Population, Area, and Density {.smaller-text}
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+plot_ly(countries_data, x = ~area, y = ~pop2023, z = ~density, text = ~country, type = 'scatter3d', mode = 'markers',
+        marker = list(size = 3, color = ~density, colorscale = 'Viridis', showscale = TRUE)) %>%
+  layout(title = "8. 3D Scatter Plot of Population, Area, and Density",
+         scene = list(xaxis = list(title = 'Area (sq km)'),
+                      yaxis = list(title = 'Population (2023)'),
+                      zaxis = list(title = 'Density')))
+
+```
+
+*The 3D scatter plot illustrates the interaction between area, population, and density. It provides a multidimensional perspective on how these variables relate across countries.*
+
+## Conclusion {.smaller-text}
+
+Through this analysis, we uncovered several patterns in socio-economic indicators:
+
+1.  **Population Trends**: The global population has been increasing, with certain countries experiencing rapid growth.
+
+2.  **Population Density**: There's significant variation in population density, affecting resource allocation and urban planning.
+
+3.  **Growth Rate Correlation**: A negative correlation exists between growth rate and net population.
+
+4.  **Geographical Patterns**: The heatmap highlights regions with high population densities.
+
+These insights can inform policymakers and researchers about demographic trends and potential areas for further study.
+
+## References
+
+-   Countries Data: <https://www.kaggle.com/datasets/arpitsinghaiml/world-population>
